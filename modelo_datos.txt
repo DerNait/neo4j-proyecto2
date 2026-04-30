@@ -1,0 +1,63 @@
+# MODELO DE DATOS NEO4J - RED SOCIAL GAMING
+
+## 1. NODOS (Etiquetas y Propiedades)
+
+* Base Label: User
+  - Secondary Labels: :Admin, :Moderator, :Bot
+  - Properties: username (String), joinDate (Date), karmaPoints (Integer), isPremium (Boolean), socialLinks (List[String])
+
+* Base Label: Post
+  - Secondary Labels: :Featured, :Announcement, :Archived
+  - Properties: id (String), title (String), body (String), createdAt (Date), upvotes (Integer), keywords (List[String])
+
+* Base Label: Community
+  - Secondary Labels: :Official, :Restricted, :Trending
+  - Properties: name (String), createdDate (Date), memberCount (Integer), isNSFW (Boolean), rules (List[String])
+
+* Base Label: Game
+  - Secondary Labels: :Indie, :AAA, :EarlyAccess
+  - Properties: title (String), developer (String), releaseDate (Date), metacriticScore (Float), features (List[String])
+
+* Base Label: Award
+  - Secondary Labels: :Seasonal, :Legacy
+  - Properties: name (String), coinCost (Integer), isRare (Boolean), iconUrl (String), createdAt (Date)
+
+* Base Label: Genre
+  - Properties: name (String), slug (String), description (String), colorHex (String), popularityRank (Integer)
+
+* Base Label: Platform
+  - Properties: name (String), manufacturer (String), generation (Integer), releasedAt (Date), websiteUrl (String), iconUrl (String)
+
+* Base Label: Tag
+  - Properties: name (String), description (String), createdAt (Date), usageCount (Integer), isOfficial (Boolean)
+
+## 2. RELACIONES (Tipos y Propiedades)
+
+1. (Game)-[:IS_OF]->(Genre)
+   - Props: assignedAt (Date), isPrimaryGenre (Boolean), matchPercentage (Float)
+2. (Game)-[:RELEASED_ON]->(Platform)
+   - Props: releasedAt (Date), isPorted (Boolean), targetFps (Integer)
+3. (Community)-[:RELATED_TO]->(Game)
+   - Props: establishedAt (Date), officialLink (String), priorityLevel (Integer)
+4. (Post)-[:POSTED_IN]->(Community)
+   - Props: isPinned (Boolean), allowsComments (Boolean), offTopic (Boolean)
+5. (User)-[:WROTE]->(Post)
+   - Props: clientApp (String), isEdited (Boolean), location (String)
+6. (User)-[:FOLLOWS]->(User)
+   - Props: sinceAt (Date), notificationsOn (Boolean), closeFriend (Boolean)
+7. (User)-[:MEMBER_OF]->(Community)
+   - Props: joinedAt (Date), role (String), isActive (Boolean)
+8. (User)-[:UPVOTED]->(Post)
+   - Props: upvotedAt (Date), voteWeight (Integer), isSuperVote (Boolean)
+9. (User)-[:COMMENTED_ON]->(Post)
+   - Props: comment (String), commentedAt (Date), isReply (Boolean)
+10. (User)-[:LIKES]->(Genre)
+    - Props: likedAt (Date), intensityLevel (Integer), isPublic (Boolean)
+11. (Post)-[:CROSSPOSTED_TO]->(Community)
+    - Props: crosspostedAt (Date), karmaGained (Integer), reason (String)
+12. (Post)-[:RECEIVED_AWARD]->(Award)
+    - Props: grantedAt (Date), quantity (Integer), givenByUser (Boolean)
+13. (Post)-[:TAGGED_WITH]->(Tag)
+    - Props: addedAt (Date), confidenceScore (Float), isModeratorApplied (Boolean)
+14. (Post)-[:ABOUT]->(Game)
+    - Props: containsSpoilers (Boolean), isReview (Boolean), firstTime (Boolean)
