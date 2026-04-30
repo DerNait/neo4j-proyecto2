@@ -1,0 +1,21 @@
+game_title,platform_name,releasedAt,isPorted,targetFps
+Elden Ring,Nintendo Switch,2026-03-30,false,30
+Minecraft,Android,2026-03-23,false,120
+Helldivers 2,PlayStation 4,2026-02-14,true,30
+Baldur's Gate 3,Android,2026-01-17,true,120
+Cyberpunk 2077,Xbox Series X,2026-03-29,true,120
+Counter-Strike 2,iOS,2026-02-10,true,120
+League of Legends,PC,2026-03-11,true,30
+The Legend of Zelda: Tears of the Kingdom,Nintendo Switch,2026-02-13,false,30
+Fortnite,PlayStation 4,2026-04-02,true,60
+Valorant,Xbox Series X,2026-01-18,true,60
+Red Dead Redemption 2,Nintendo Switch,2026-03-30,false,120
+Stardew Valley,Nintendo Switch,2026-01-01,false,30
+Hollow Knight,PC,2026-03-17,false,120
+Grand Theft Auto V,Android,2026-04-14,false,120
+Apex Legends,Steam Deck,2026-03-20,true,120
+Palworld,Android,2026-04-12,false,30
+The Witcher 3: Wild Hunt,Xbox Series X,2026-01-31,true,30
+Hades,Xbox Series X,2026-02-08,true,60
+Super Mario Odyssey,Steam Deck,2026-01-13,false,60
+Overwatch 2,Android,2026-02-06,false,60
