@@ -134,7 +134,7 @@ class NodeController extends Controller
             ],
             [
                 'label'  => 'MetacriticScore Promedio',
-                'cypher' => 'MATCH (g:Game) WHERE g.metacriticScore IS NOT NULL RETURN round(avg(g.metacriticScore), 2) AS value',
+                'cypher' => 'MATCH (g:Game) WHERE g.metacriticScore IS NOT NULL RETURN round(avg(toFloat(g.metacriticScore)), 2) AS value',
                 'icon'   => 'star',
                 'format' => 'float',
             ],
@@ -142,6 +142,30 @@ class NodeController extends Controller
                 'label'  => 'Total de Posts',
                 'cypher' => 'MATCH (p:Post) RETURN count(p) AS value',
                 'icon'   => 'document',
+                'format' => 'integer',
+            ],
+            [
+                'label'  => 'Karma Máximo (User)',
+                'cypher' => 'MATCH (u:User) WHERE u.karmaPoints IS NOT NULL RETURN max(toInteger(u.karmaPoints)) AS value',
+                'icon'   => 'trophy',
+                'format' => 'integer',
+            ],
+            [
+                'label'  => 'Karma Mínimo (User)',
+                'cypher' => 'MATCH (u:User) WHERE u.karmaPoints IS NOT NULL RETURN min(toInteger(u.karmaPoints)) AS value',
+                'icon'   => 'arrow-down',
+                'format' => 'integer',
+            ],
+            [
+                'label'  => 'Total Upvotes (Posts)',
+                'cypher' => 'MATCH (p:Post) WHERE p.upvotes IS NOT NULL RETURN sum(toInteger(p.upvotes)) AS value',
+                'icon'   => 'chart',
+                'format' => 'integer',
+            ],
+            [
+                'label'  => 'Desarrolladores Únicos',
+                'cypher' => 'MATCH (g:Game) WHERE g.developer IS NOT NULL RETURN size(collect(DISTINCT g.developer)) AS value',
+                'icon'   => 'tag',
                 'format' => 'integer',
             ],
         ];
@@ -170,28 +194,30 @@ class NodeController extends Controller
         $label  = $request->input('label', 'Game');
         $search = trim($request->input('search', ''));
         $limit  = min((int) $request->input('limit', 25), 100);
+        $page   = max(1, (int) $request->input('page', 1));
+        $skip   = ($page - 1) * $limit;
 
         if (!array_key_exists($label, self::SCHEMA)) {
             return response()->json(['error' => 'Label inválido'], 422);
         }
 
         $searchField = self::SCHEMA[$label]['searchField'];
+        // Embed search directly to avoid AuraDB routing-table bug with non-empty Cypher params
+        $safeSearch  = addslashes(preg_replace('/[^\p{L}\p{N}\s\-\.]/u', '', $search));
 
         if ($search !== '') {
-            $params = ['search' => $search];
             $cypher = "MATCH (n:{$label})
-                       WHERE toLower(toString(n.{$searchField})) CONTAINS toLower(\$search)
+                       WHERE toLower(toString(n.{$searchField})) CONTAINS toLower('{$safeSearch}')
                        RETURN elementId(n) AS id, labels(n) AS lbls, properties(n) AS props
-                       LIMIT {$limit}";
+                       SKIP {$skip} LIMIT {$limit}";
         } else {
-            $params = [];
             $cypher = "MATCH (n:{$label})
                        RETURN elementId(n) AS id, labels(n) AS lbls, properties(n) AS props
-                       LIMIT {$limit}";
+                       SKIP {$skip} LIMIT {$limit}";
         }
 
         try {
-            $result = $this->neo4j->run($cypher, $params);
+            $result = $this->neo4j->run($cypher, []);
             $nodes  = [];
             foreach ($result as $row) {
                 $nodes[] = $this->formatRow($row);
@@ -277,6 +303,44 @@ class NodeController extends Controller
         }
 
         return redirect()->route('nodes.index')->with('success', 'Nodo creado exitosamente.');
+    }
+
+    // ── Eliminación individual ─────────────────────────────────────────────────
+
+    public function destroy(Request $request)
+    {
+        $id = $request->input('id', '');
+        if (!$id) {
+            return response()->json(['error' => 'ID requerido'], 422);
+        }
+        try {
+            $this->neo4j->run(
+                'MATCH (n) WHERE elementId(n) = $id DETACH DELETE n',
+                ['id' => $id]
+            );
+            return response()->json(['success' => true]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    // ── Eliminación masiva ─────────────────────────────────────────────────────
+
+    public function bulkDestroy(Request $request)
+    {
+        $ids = $request->input('ids', []);
+        if (empty($ids)) {
+            return response()->json(['error' => 'IDs requeridos'], 422);
+        }
+        try {
+            $this->neo4j->run(
+                'UNWIND $ids AS id MATCH (n) WHERE elementId(n) = id DETACH DELETE n',
+                ['ids' => array_values($ids)]
+            );
+            return response()->json(['success' => true, 'count' => count($ids)]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
     private function formatRow(mixed $row): array
