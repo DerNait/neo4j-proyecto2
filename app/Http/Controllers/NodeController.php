@@ -343,6 +343,89 @@ class NodeController extends Controller
         }
     }
 
+    public function importCsv(Request $request)
+    {
+        $label = $request->input('label', '');
+
+        if (!array_key_exists($label, self::SCHEMA)) {
+            return response()->json(['error' => 'Label inválido'], 422);
+        }
+
+        if (!$request->hasFile('csv')) {
+            return response()->json(['error' => 'No se proporcionó archivo CSV'], 422);
+        }
+
+        $content = file_get_contents($request->file('csv')->getRealPath());
+        $content = str_replace(["\r\n", "\r"], "\n", $content);
+        $lines   = array_values(array_filter(explode("\n", $content), fn($l) => trim($l) !== ''));
+
+        if (count($lines) < 2) {
+            return response()->json(['error' => 'El CSV necesita al menos encabezado y una fila de datos'], 422);
+        }
+
+        $headers          = array_map('trim', str_getcsv(array_shift($lines)));
+        $schema           = self::SCHEMA[$label]['properties'];
+        $allowedSecondary = self::SCHEMA[$label]['secondary'];
+
+        $created = 0;
+        $errors  = [];
+
+        foreach ($lines as $i => $line) {
+            $rowNum = $i + 2;
+            $cols   = str_getcsv($line);
+
+            if (count($cols) !== count($headers)) {
+                $errors[] = "Fila {$rowNum}: número de columnas incorrecto";
+                continue;
+            }
+
+            $data = array_combine($headers, array_map('trim', $cols));
+
+            // Secondary labels (pipe-separated in CSV)
+            $secondaries = [];
+            if (!empty($data['secondaryLabels'])) {
+                $secondaries = array_filter(array_map('trim', explode('|', $data['secondaryLabels'])));
+                foreach ($secondaries as $s) {
+                    if (!in_array($s, $allowedSecondary, true)) {
+                        $errors[] = "Fila {$rowNum}: etiqueta secundaria inválida '{$s}'";
+                        continue 2;
+                    }
+                }
+            }
+
+            $labelsStr = implode(':', array_merge([$label], array_values($secondaries)));
+
+            $params = [];
+            $rowOk  = true;
+            foreach ($schema as $key => $meta) {
+                $val = $data[$key] ?? null;
+                if ($val === null || $val === '') {
+                    if ($meta['required']) {
+                        $errors[] = "Fila {$rowNum}: campo requerido '{$key}' faltante";
+                        $rowOk = false;
+                        break;
+                    }
+                    continue;
+                }
+                $params[$key] = $this->castValue($val, $meta['type']);
+            }
+
+            if (!$rowOk) continue;
+
+            $propPairs = implode(', ', array_map(fn($k) => "{$k}: \${$k}", array_keys($params)));
+            $cypher    = "CREATE (n:{$labelsStr} {{$propPairs}}) RETURN elementId(n) AS id";
+
+            try {
+                $this->neo4j->run($cypher, $params);
+                $created++;
+            } catch (\Throwable $e) {
+                $errors[] = "Fila {$rowNum}: " . $e->getMessage();
+            }
+        }
+
+        return response()->json(['created' => $created, 'errors' => $errors]);
+    }
+
     private function formatRow(mixed $row): array
     {
         $rawLabels = $row->get('lbls');

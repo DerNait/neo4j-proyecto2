@@ -22,6 +22,14 @@
           </svg>
           Relaciones
         </a>
+        <button @click="openCsvModal"
+                class="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+          </svg>
+          Cargar Nodos
+        </button>
         <a href="/nodes/create"
            class="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -383,6 +391,109 @@
       </div>
     </Transition>
 
+    <!-- ── Modal CSV Import ─────────────────────────────────────────────────── -->
+    <Transition name="fade">
+      <div v-if="csvModal"
+           class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+           @click.self="closeCsvModal">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl">
+
+          <!-- Header -->
+          <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-800">
+            <div class="flex items-center gap-2">
+              <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+              </svg>
+              <h2 class="text-sm font-semibold text-white">Cargar Nodos desde CSV</h2>
+            </div>
+            <button @click="closeCsvModal" class="text-gray-500 hover:text-gray-300 transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="px-6 py-5 space-y-4">
+
+            <!-- Label selector -->
+            <div>
+              <label class="text-xs text-gray-400 font-medium block mb-1.5">Tipo de nodo</label>
+              <select v-model="csvLabel"
+                      class="w-full bg-gray-800 border border-gray-700 text-gray-100 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500">
+                <option v-for="(_, lbl) in schema" :key="lbl" :value="lbl">{{ lbl }}</option>
+              </select>
+            </div>
+
+            <!-- Expected columns info -->
+            <div class="bg-gray-800/60 rounded-lg p-3 space-y-1.5">
+              <p class="text-xs font-medium text-gray-400">Columnas esperadas para <span class="text-violet-400">{{ csvLabel }}</span>:</p>
+              <div class="flex flex-wrap gap-1.5">
+                <span v-for="col in csvExpectedCols" :key="col"
+                      class="text-xs font-mono bg-gray-700 text-gray-300 px-2 py-0.5 rounded">{{ col }}</span>
+                <span v-if="schema[csvLabel]?.secondary?.length"
+                      class="text-xs font-mono bg-gray-700/60 text-gray-500 px-2 py-0.5 rounded border border-dashed border-gray-600">
+                  secondaryLabels (opcional)
+                </span>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">
+                Listas: separadas por coma dentro de comillas <span class="font-mono text-gray-400">"val1, val2"</span>.
+                Labels secundarios: separados por <span class="font-mono text-gray-400">|</span>
+                <span v-if="schema[csvLabel]?.secondary?.length">
+                  — válidos: <span class="text-violet-400">{{ schema[csvLabel].secondary.join(', ') }}</span>
+                </span>
+              </p>
+            </div>
+
+            <!-- File input -->
+            <div>
+              <label class="text-xs text-gray-400 font-medium block mb-1.5">Archivo CSV</label>
+              <div class="relative">
+                <input ref="csvFileInput" type="file" accept=".csv,text/csv"
+                       @change="onCsvFileChange"
+                       class="block w-full text-sm text-gray-400
+                              file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0
+                              file:text-xs file:font-medium file:bg-violet-700 file:text-white
+                              file:hover:bg-violet-600 file:cursor-pointer file:transition-colors
+                              cursor-pointer"/>
+              </div>
+              <p v-if="csvFileName" class="text-xs text-gray-500 mt-1">{{ csvFileName }}</p>
+            </div>
+
+            <!-- Result -->
+            <div v-if="csvResult" class="rounded-lg p-3 space-y-1"
+                 :class="csvResult.errors.length ? 'bg-yellow-900/30 border border-yellow-700/50' : 'bg-emerald-900/30 border border-emerald-700/50'">
+              <p class="text-sm font-medium" :class="csvResult.errors.length ? 'text-yellow-300' : 'text-emerald-300'">
+                ✓ {{ csvResult.created }} nodo{{ csvResult.created !== 1 ? 's' : '' }} creado{{ csvResult.created !== 1 ? 's' : '' }}
+              </p>
+              <ul v-if="csvResult.errors.length" class="space-y-0.5 max-h-32 overflow-y-auto">
+                <li v-for="(err, i) in csvResult.errors" :key="i"
+                    class="text-xs text-yellow-400 font-mono">{{ err }}</li>
+              </ul>
+            </div>
+
+            <div v-if="csvError" class="bg-red-900/40 border border-red-700 rounded-lg px-3 py-2">
+              <p class="text-xs text-red-300">{{ csvError }}</p>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="px-6 pb-5 flex gap-2">
+            <button @click="submitCsv"
+                    :disabled="!csvFile || csvUploading"
+                    class="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium py-2.5 rounded-lg transition-colors">
+              {{ csvUploading ? 'Importando...' : 'Importar CSV' }}
+            </button>
+            <button @click="closeCsvModal"
+                    class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm py-2.5 rounded-lg transition-colors">
+              Cerrar
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </Transition>
+
     <!-- ── Bulk Action Bar ────────────────────────────────────────────────── -->
     <Transition name="slide-up">
       <div v-if="selectionCount > 0"
@@ -529,6 +640,69 @@ const propSaving  = ref(false)
 const propError   = ref(null)
 const propSuccess = ref(null)
 const _originalProps = ref({})
+
+// CSV Import
+const csvModal     = ref(false)
+const csvLabel     = ref('Game')
+const csvFile      = ref(null)
+const csvFileName  = ref('')
+const csvUploading = ref(false)
+const csvResult    = ref(null)
+const csvError     = ref(null)
+const csvFileInput = ref(null)
+
+const csvExpectedCols = computed(() => {
+  const s = props.schema[csvLabel.value]
+  return s ? Object.keys(s.properties) : []
+})
+
+const openCsvModal = () => {
+  csvLabel.value     = selectedLabel.value
+  csvFile.value      = null
+  csvFileName.value  = ''
+  csvResult.value    = null
+  csvError.value     = null
+  csvModal.value     = true
+}
+
+const closeCsvModal = () => {
+  csvModal.value = false
+}
+
+const onCsvFileChange = (e) => {
+  const f = e.target.files?.[0]
+  if (!f) return
+  csvFile.value     = f
+  csvFileName.value = f.name
+  csvResult.value   = null
+  csvError.value    = null
+}
+
+const submitCsv = async () => {
+  if (!csvFile.value) return
+  csvUploading.value = true
+  csvResult.value    = null
+  csvError.value     = null
+
+  const form = new FormData()
+  form.append('csv', csvFile.value)
+  form.append('label', csvLabel.value)
+
+  try {
+    const res = await axios.post('/nodes/import-csv', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    csvResult.value = res.data
+    if (res.data.created > 0) {
+      await loadNodes()
+      await loadAggregates()
+    }
+  } catch (e) {
+    csvError.value = e.response?.data?.error ?? 'Error al importar CSV'
+  } finally {
+    csvUploading.value = false
+  }
+}
 
 // Bulk
 const bulkMode   = ref(null)   // 'add' | 'remove' | null

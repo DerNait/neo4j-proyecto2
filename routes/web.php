@@ -37,6 +37,7 @@ Route::prefix('nodes')->name('nodes.')->group(function () {
     Route::get('/detail',     [NodeController::class, 'show'])->name('show');
     Route::post('/delete',      [NodeController::class, 'destroy'])->name('destroy');
     Route::post('/bulk-delete', [NodeController::class, 'bulkDestroy'])->name('bulk-destroy');
+    Route::post('/import-csv',  [NodeController::class, 'importCsv'])->name('import-csv');
 });
 
 // ── Gestión de Propiedades de Nodos ───────────────────────────────────────────
