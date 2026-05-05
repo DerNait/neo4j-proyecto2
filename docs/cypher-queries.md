@@ -430,3 +430,84 @@ RETURN elementId(r) AS id
 | Eliminación masiva de relaciones | `RelationController::bulkDestroyRelations()` |
 | Creación masiva de nodos (CSV) | `NodeController::importCsv()` |
 | Creación masiva de relaciones (CSV) | `RelationController::importCsv()` |
+| Data Science — Filtrado Colaborativo | `AnalyticsController::recommend()` |
+| Data Science — Centralidad de Grado Ponderada | `AnalyticsController::influencers()` |
+| Data Science — Trending Score | `AnalyticsController::trending()` |
+
+---
+
+## `app/Http/Controllers/AnalyticsController.php`
+
+### `recommend()` — Filtrado Colaborativo (Recomendaciones de Juegos)
+
+```cypher
+MATCH (target:User)
+WHERE toLower(toString(target.username)) CONTAINS toLower('{safeUsername}')
+WITH target LIMIT 1
+
+MATCH (target)-[:MEMBER_OF]->(c:Community)<-[:MEMBER_OF]-(similar:User)
+WHERE similar <> target
+
+MATCH (similar)-[:UPVOTED]->(p:Post)-[:ABOUT]->(g:Game)
+WHERE NOT EXISTS {
+    MATCH (target)-[:UPVOTED|COMMENTED_ON]->(:Post)-[:ABOUT]->(g)
+}
+
+WITH g,
+     count(DISTINCT similar) AS userOverlap,
+     count(DISTINCT p)       AS postCount,
+     toFloat(coalesce(g.metacriticScore, 0)) AS metacritic
+RETURN g.title AS title, g.developer AS developer, g.metacriticScore AS metacriticScore,
+       userOverlap, postCount,
+       round(userOverlap * 3.0 + postCount * 1.0 + metacritic * 0.1, 2) AS score
+ORDER BY score DESC LIMIT 10
+```
+
+**Tipo:** Data Science — Filtrado Colaborativo  
+**Explicación:** Implementa filtrado colaborativo basado en grafos. Primero encuentra usuarios similares al target usando membresía compartida en comunidades (`MEMBER_OF`) como proxy de similitud. Luego identifica juegos que esos usuarios similares valoraron positivamente (`UPVOTED → Post → ABOUT → Game`) pero que el target no conoce (`NOT EXISTS`). El score pondera: `userOverlap × 3` (señal social más fuerte), `postCount × 1` (volumen de contenido) y `metacritic × 0.1` (calidad objetiva). El username se sanitiza con `preg_replace` + `addslashes` e interpola directamente en el Cypher (mismo patrón defensivo del resto del proyecto para evitar el bug de routing de AuraDB con parámetros no vacíos).
+
+---
+
+### `influencers()` — Centralidad de Grado Ponderada
+
+```cypher
+MATCH (u:User)
+OPTIONAL MATCH (u)<-[:FOLLOWS]-(follower:User)
+OPTIONAL MATCH (u)-[:WROTE]->(p:Post)
+WITH u,
+     count(DISTINCT follower) AS followers,
+     count(DISTINCT p)        AS posts,
+     toInteger(coalesce(u.karmaPoints, 0)) AS karma
+RETURN u.username AS username, followers, posts, karma,
+       round(toFloat(followers) * 2.0 + toFloat(posts) * 1.5 + toFloat(karma) * 0.01, 2) AS influenceScore
+ORDER BY influenceScore DESC LIMIT 15
+```
+
+**Tipo:** Data Science — Centralidad de Grado Ponderada (Degree Centrality)  
+**Explicación:** Calcula una variante de degree centrality ponderada semánticamente para el dominio gaming. Los `followers` valen más (señal social directa, peso 2.0), los `posts` miden actividad de contenido (peso 1.5) y el `karma` la reputación acumulada (peso 0.01, escala diferente). `OPTIONAL MATCH` garantiza que usuarios sin seguidores o sin posts no se excluyan del ranking. Retorna los 15 usuarios más influyentes.
+
+---
+
+### `trending()` — Trending Score (Actividad de Juegos)
+
+```cypher
+MATCH (p:Post)-[:ABOUT]->(g:Game)
+OPTIONAL MATCH (u:User)-[:UPVOTED]->(p)
+OPTIONAL MATCH (u2:User)-[:COMMENTED_ON]->(p)
+WITH g, p,
+     count(DISTINCT u)  AS voters,
+     count(DISTINCT u2) AS commenters,
+     toInteger(coalesce(p.upvotes, 0)) AS upvotes
+WITH g,
+     count(DISTINCT p) AS postCount,
+     sum(upvotes)       AS totalUpvotes,
+     sum(voters)        AS totalVoters,
+     sum(commenters)    AS totalCommenters
+RETURN g.title AS title, g.developer AS developer, g.metacriticScore AS metacriticScore,
+       postCount, totalUpvotes, totalCommenters,
+       round(toFloat(postCount) * 5.0 + toFloat(totalUpvotes) * 0.05 + toFloat(totalVoters) * 1.0, 2) AS trendScore
+ORDER BY trendScore DESC LIMIT 10
+```
+
+**Tipo:** Data Science — Scoring de Tendencias  
+**Explicación:** Mide la actividad total generada por cada juego en la red social. Agrega en dos etapas: primero a nivel de post (voters y commenters únicos por post), luego a nivel de juego (suma los posts, upvotes y votantes de todos sus posts). El trendScore pondera: `postCount × 5` (cantidad de posts como señal fuerte de relevancia), `totalUpvotes × 0.05` (volumen de votos con escala reducida) y `totalVoters × 1` (usuarios únicos que votaron, señal de alcance). Retorna los 10 juegos en mayor tendencia.

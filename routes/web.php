@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\NodeController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\RelationController;
+use App\Http\Controllers\AnalyticsController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -64,6 +65,14 @@ Route::prefix('relations')->name('relations.')->group(function () {
     Route::post('/delete',      [RelationController::class, 'destroyRelation'])->name('destroy');
     Route::post('/bulk-delete', [RelationController::class, 'bulkDestroyRelations'])->name('bulk-destroy');
     Route::post('/import-csv',  [RelationController::class, 'importCsv'])->name('import-csv');
+});
+
+// ── Analytics / Data Science ──────────────────────────────────────────────────
+Route::prefix('analytics')->name('analytics.')->group(function () {
+    Route::get('/',            [AnalyticsController::class, 'index'])->name('index');
+    Route::get('/recommend',   [AnalyticsController::class, 'recommend'])->name('recommend');
+    Route::get('/influencers', [AnalyticsController::class, 'influencers'])->name('influencers');
+    Route::get('/trending',    [AnalyticsController::class, 'trending'])->name('trending');
 });
 
 require __DIR__.'/auth.php';
