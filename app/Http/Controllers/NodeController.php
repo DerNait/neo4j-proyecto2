@@ -7,6 +7,9 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Laudis\Neo4j\Types\CypherList;
 use Laudis\Neo4j\Types\CypherMap;
+use Laudis\Neo4j\Types\Date;
+use Laudis\Neo4j\Types\DateTime as Neo4jDateTime;
+use Laudis\Neo4j\Types\LocalDateTime;
 
 class NodeController extends Controller
 {
@@ -457,6 +460,12 @@ class NodeController extends Controller
         }
         if ($v instanceof CypherMap) {
             return $this->convertCypherMap($v);
+        }
+        if ($v instanceof Date) {
+            return gmdate('Y-m-d', $v->getDays() * 86400);
+        }
+        if ($v instanceof Neo4jDateTime || $v instanceof LocalDateTime) {
+            return gmdate('Y-m-d H:i:s', $v->getSeconds());
         }
         return $v;
     }

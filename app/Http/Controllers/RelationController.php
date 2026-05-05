@@ -7,6 +7,9 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Laudis\Neo4j\Types\CypherList;
 use Laudis\Neo4j\Types\CypherMap;
+use Laudis\Neo4j\Types\Date;
+use Laudis\Neo4j\Types\DateTime as Neo4jDateTime;
+use Laudis\Neo4j\Types\LocalDateTime;
 
 class RelationController extends Controller
 {
@@ -538,9 +541,17 @@ class RelationController extends Controller
         }
         $out = [];
         foreach ($map as $k => $v) {
-            $out[$k] = $v instanceof CypherList
-                ? $v->toArray()
-                : ($v instanceof CypherMap ? $this->convertCypherMap($v) : $v);
+            if ($v instanceof CypherList) {
+                $out[$k] = $v->toArray();
+            } elseif ($v instanceof CypherMap) {
+                $out[$k] = $this->convertCypherMap($v);
+            } elseif ($v instanceof Date) {
+                $out[$k] = gmdate('Y-m-d', $v->getDays() * 86400);
+            } elseif ($v instanceof Neo4jDateTime || $v instanceof LocalDateTime) {
+                $out[$k] = gmdate('Y-m-d H:i:s', $v->getSeconds());
+            } else {
+                $out[$k] = $v;
+            }
         }
         return $out;
     }
