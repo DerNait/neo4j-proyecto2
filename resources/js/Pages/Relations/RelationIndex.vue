@@ -22,6 +22,14 @@
           </svg>
           Nodos
         </a>
+        <button @click="openCsvModal"
+                class="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+          </svg>
+          Cargar Relaciones
+        </button>
         <a href="/relations/create"
            class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -323,6 +331,117 @@
       </div>
     </Transition>
 
+    <!-- ── Modal CSV Import Relaciones ──────────────────────────────────────── -->
+    <Transition name="fade">
+      <div v-if="csvModal"
+           class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+           @click.self="closeCsvModal">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl">
+
+          <!-- Header -->
+          <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-800">
+            <div class="flex items-center gap-2">
+              <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+              </svg>
+              <h2 class="text-sm font-semibold text-white">Cargar Relaciones desde CSV</h2>
+            </div>
+            <button @click="closeCsvModal" class="text-gray-500 hover:text-gray-300 transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="px-6 py-5 space-y-4">
+
+            <!-- RelType selector -->
+            <div>
+              <label class="text-xs text-gray-400 font-medium block mb-1.5">Tipo de relación</label>
+              <select v-model="csvRelType"
+                      class="w-full bg-gray-800 border border-gray-700 text-gray-100 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option v-for="t in relTypes" :key="t" :value="t">{{ t }}</option>
+              </select>
+            </div>
+
+            <!-- Info de nodos from/to y columnas esperadas -->
+            <div v-if="csvSchemaInfo" class="bg-gray-800/60 rounded-lg p-3 space-y-2">
+              <div class="flex items-center gap-2 text-xs">
+                <span class="px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300 font-medium">{{ csvSchemaInfo.from }}</span>
+                <span class="text-gray-500 font-mono">─[{{ csvRelType }}]→</span>
+                <span class="px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300 font-medium">{{ csvSchemaInfo.to }}</span>
+              </div>
+
+              <p class="text-xs font-medium text-gray-400 mt-1">Columnas del CSV:</p>
+              <div class="flex flex-wrap gap-1.5">
+                <span class="text-xs font-mono bg-violet-900/50 text-violet-300 px-2 py-0.5 rounded border border-violet-800">
+                  fromValue <span class="text-violet-500">({{ csvSchemaInfo.from }}.{{ NODE_SEARCH_LOCAL[csvSchemaInfo.from] }})</span>
+                </span>
+                <span class="text-xs font-mono bg-violet-900/50 text-violet-300 px-2 py-0.5 rounded border border-violet-800">
+                  toValue <span class="text-violet-500">({{ csvSchemaInfo.to }}.{{ NODE_SEARCH_LOCAL[csvSchemaInfo.to] }})</span>
+                </span>
+                <span v-for="(meta, col) in csvSchemaInfo.properties" :key="col"
+                      class="text-xs font-mono bg-gray-700 text-gray-300 px-2 py-0.5 rounded">
+                  {{ col }}
+                </span>
+              </div>
+
+              <p class="text-xs text-gray-500">
+                <span class="font-mono text-gray-400">fromValue</span> y <span class="font-mono text-gray-400">toValue</span>
+                deben coincidir exactamente con el campo identificador del nodo.
+                Booleanos: <span class="font-mono text-gray-400">true</span> / <span class="font-mono text-gray-400">false</span>.
+                Fechas: <span class="font-mono text-gray-400">YYYY-MM-DD</span>.
+              </p>
+            </div>
+
+            <!-- File input -->
+            <div>
+              <label class="text-xs text-gray-400 font-medium block mb-1.5">Archivo CSV</label>
+              <input ref="csvFileInput" type="file" accept=".csv,text/csv"
+                     @change="onCsvFileChange"
+                     class="block w-full text-sm text-gray-400
+                            file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0
+                            file:text-xs file:font-medium file:bg-emerald-700 file:text-white
+                            file:hover:bg-emerald-600 file:cursor-pointer file:transition-colors
+                            cursor-pointer"/>
+              <p v-if="csvFileName" class="text-xs text-gray-500 mt-1">{{ csvFileName }}</p>
+            </div>
+
+            <!-- Result -->
+            <div v-if="csvResult" class="rounded-lg p-3 space-y-1"
+                 :class="csvResult.errors.length ? 'bg-yellow-900/30 border border-yellow-700/50' : 'bg-emerald-900/30 border border-emerald-700/50'">
+              <p class="text-sm font-medium" :class="csvResult.errors.length ? 'text-yellow-300' : 'text-emerald-300'">
+                ✓ {{ csvResult.created }} relación{{ csvResult.created !== 1 ? 'es' : '' }} creada{{ csvResult.created !== 1 ? 's' : '' }}
+              </p>
+              <ul v-if="csvResult.errors.length" class="space-y-0.5 max-h-32 overflow-y-auto">
+                <li v-for="(err, i) in csvResult.errors" :key="i"
+                    class="text-xs text-yellow-400 font-mono">{{ err }}</li>
+              </ul>
+            </div>
+
+            <div v-if="csvError" class="bg-red-900/40 border border-red-700 rounded-lg px-3 py-2">
+              <p class="text-xs text-red-300">{{ csvError }}</p>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="px-6 pb-5 flex gap-2">
+            <button @click="submitCsv"
+                    :disabled="!csvFile || csvUploading"
+                    class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium py-2.5 rounded-lg transition-colors">
+              {{ csvUploading ? 'Importando...' : 'Importar CSV' }}
+            </button>
+            <button @click="closeCsvModal"
+                    class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm py-2.5 rounded-lg transition-colors">
+              Cerrar
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </Transition>
+
     <!-- ── Bulk Action Bar ────────────────────────────────────────────────── -->
     <Transition name="slide-up">
       <div v-if="selectionCount > 0"
@@ -442,7 +561,33 @@ const chipName  = (n)   => n?.props?.name ?? n?.props?.title ?? n?.props?.userna
 const chipLabel = (n)   => n?.labels?.[0] ?? '?'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
-defineProps({ relTypes: { type: Array, required: true } })
+const props = defineProps({
+  relTypes:   { type: Array,  required: true },
+  relSchema:  { type: Object, default: () => ({}) },
+  nodeSearch: { type: Object, default: () => ({}) },
+})
+
+const NODE_SEARCH_LOCAL = {
+  User: 'username', Post: 'title', Community: 'name',
+  Game: 'title', Award: 'name', Genre: 'name', Platform: 'name', Tag: 'name',
+}
+
+const REL_SCHEMA_LOCAL = {
+  IS_OF:         { from: 'Game',      to: 'Genre',     properties: { assignedAt: 'date', isPrimaryGenre: 'boolean', matchPercentage: 'float' } },
+  RELEASED_ON:   { from: 'Game',      to: 'Platform',  properties: { releasedAt: 'date', isPorted: 'boolean', targetFps: 'integer' } },
+  RELATED_TO:    { from: 'Community', to: 'Game',      properties: { establishedAt: 'date', officialLink: 'string', priorityLevel: 'integer' } },
+  POSTED_IN:     { from: 'Post',      to: 'Community', properties: { isPinned: 'boolean', allowsComments: 'boolean', offTopic: 'boolean' } },
+  WROTE:         { from: 'User',      to: 'Post',      properties: { clientApp: 'string', isEdited: 'boolean', location: 'string' } },
+  FOLLOWS:       { from: 'User',      to: 'User',      properties: { sinceAt: 'date', notificationsOn: 'boolean', closeFriend: 'boolean' } },
+  MEMBER_OF:     { from: 'User',      to: 'Community', properties: { joinedAt: 'date', role: 'string', isActive: 'boolean' } },
+  UPVOTED:       { from: 'User',      to: 'Post',      properties: { upvotedAt: 'date', voteWeight: 'integer', isSuperVote: 'boolean' } },
+  COMMENTED_ON:  { from: 'User',      to: 'Post',      properties: { comment: 'string', commentedAt: 'date', isReply: 'boolean' } },
+  LIKES:         { from: 'User',      to: 'Genre',     properties: { likedAt: 'date', intensityLevel: 'integer', isPublic: 'boolean' } },
+  CROSSPOSTED_TO:{ from: 'Post',      to: 'Community', properties: { crosspostedAt: 'date', karmaGained: 'integer', reason: 'string' } },
+  RECEIVED_AWARD:{ from: 'Post',      to: 'Award',     properties: { grantedAt: 'date', quantity: 'integer', givenByUser: 'boolean' } },
+  TAGGED_WITH:   { from: 'Post',      to: 'Tag',       properties: { addedAt: 'date', confidenceScore: 'float', isModeratorApplied: 'boolean' } },
+  ABOUT:         { from: 'Post',      to: 'Game',      properties: { containsSpoilers: 'boolean', isReview: 'boolean', firstTime: 'boolean' } },
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const selectedType = ref('')
@@ -469,6 +614,58 @@ const bulkFields = ref([])
 const bulkKeys   = ref([])
 const bulkSaving = ref(false)
 const bulkError  = ref(null)
+
+// CSV Import
+const csvModal     = ref(false)
+const csvRelType   = ref(props.relTypes[0] ?? '')
+const csvFile      = ref(null)
+const csvFileName  = ref('')
+const csvUploading = ref(false)
+const csvResult    = ref(null)
+const csvError     = ref(null)
+const csvFileInput = ref(null)
+
+const csvSchemaInfo = computed(() => REL_SCHEMA_LOCAL[csvRelType.value] ?? null)
+
+const openCsvModal = () => {
+  csvRelType.value  = props.relTypes[0] ?? ''
+  csvFile.value     = null
+  csvFileName.value = ''
+  csvResult.value   = null
+  csvError.value    = null
+  csvModal.value    = true
+}
+const closeCsvModal = () => { csvModal.value = false }
+
+const onCsvFileChange = (e) => {
+  const f = e.target.files?.[0]
+  if (!f) return
+  csvFile.value     = f
+  csvFileName.value = f.name
+  csvResult.value   = null
+  csvError.value    = null
+}
+
+const submitCsv = async () => {
+  if (!csvFile.value) return
+  csvUploading.value = true
+  csvResult.value    = null
+  csvError.value     = null
+  const form = new FormData()
+  form.append('csv', csvFile.value)
+  form.append('relType', csvRelType.value)
+  try {
+    const res = await axios.post('/relations/import-csv', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    csvResult.value = res.data
+    if (res.data.created > 0) await loadRelations()
+  } catch (e) {
+    csvError.value = e.response?.data?.error ?? 'Error al importar CSV'
+  } finally {
+    csvUploading.value = false
+  }
+}
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 const loadRelations = async () => {

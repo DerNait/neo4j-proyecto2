@@ -63,6 +63,7 @@ Route::prefix('relations')->name('relations.')->group(function () {
     Route::post('/properties/bulk-remove', [RelationController::class, 'bulkRemoveFromRelations'])->name('properties.bulk-remove');
     Route::post('/delete',      [RelationController::class, 'destroyRelation'])->name('destroy');
     Route::post('/bulk-delete', [RelationController::class, 'bulkDestroyRelations'])->name('bulk-destroy');
+    Route::post('/import-csv',  [RelationController::class, 'importCsv'])->name('import-csv');
 });
 
 require __DIR__.'/auth.php';
