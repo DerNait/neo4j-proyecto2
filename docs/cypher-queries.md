@@ -374,6 +374,36 @@ RETURN size(collect(DISTINCT g.developer)) AS value
 
 ---
 
+## `app/Http/Controllers/NodeController.php`
+
+### `importCsv()` — Crear nodo desde fila CSV
+
+```cypher
+CREATE (n:{labels} {prop1: $prop1, prop2: $prop2, ...})
+RETURN elementId(n) AS id
+```
+
+**Tipo:** Escritura — creación masiva desde CSV  
+**Explicación:** Por cada fila válida del archivo CSV se genera un `CREATE` con las etiquetas y propiedades correspondientes al label seleccionado. Las etiquetas base y secundarias se validan contra el whitelist del esquema antes de interpolarse; los valores de propiedades viajan como parámetros Bolt nombrados. Los campos de tipo `list` se construyen a partir de los valores separados por coma dentro de la celda CSV. Si una fila tiene un campo requerido vacío o una etiqueta secundaria inválida, se omite y se reporta el error por número de fila sin interrumpir las demás filas.
+
+---
+
+## `app/Http/Controllers/RelationController.php`
+
+### `importCsv()` — Crear relación desde fila CSV
+
+```cypher
+MATCH (a:{fromLabel}) WHERE toString(a.{fromField}) = $fromValue
+MATCH (b:{toLabel})   WHERE toString(b.{toField})   = $toValue
+CREATE (a)-[r:{relType} {prop1: $prop1, prop2: $prop2, prop3: $prop3}]->(b)
+RETURN elementId(r) AS id
+```
+
+**Tipo:** Escritura — creación masiva de relaciones desde CSV  
+**Explicación:** Por cada fila del CSV se buscan primero los nodos origen (`a`) y destino (`b`) usando el campo identificador propio de cada etiqueta (ej. `title` para `Game`, `name` para `Genre`, `username` para `User`). Los valores de búsqueda viajan como parámetros Bolt (`$fromValue`, `$toValue`). Si el `MATCH` no encuentra alguno de los dos nodos, no se crea la relación y se reporta el error por número de fila. El tipo de relación se valida contra el whitelist de `REL_TYPES` y las propiedades (mínimo 3 por tipo) viajan como parámetros Bolt nombrados. Todo ocurre en queries independientes por fila, lo que permite importaciones parciales sin rollback total.
+
+---
+
 ## Resumen por tipo de operación
 
 | Tipo | Queries |
@@ -398,3 +428,5 @@ RETURN size(collect(DISTINCT g.developer)) AS value
 | Eliminación masiva de nodos | `NodeController::bulkDestroy()` |
 | Eliminación individual de relación | `RelationController::destroyRelation()` |
 | Eliminación masiva de relaciones | `RelationController::bulkDestroyRelations()` |
+| Creación masiva de nodos (CSV) | `NodeController::importCsv()` |
+| Creación masiva de relaciones (CSV) | `RelationController::importCsv()` |
